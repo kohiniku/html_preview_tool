@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_HTML = `<!doctype html>
 <html>
@@ -16,8 +16,49 @@ const DEFAULT_HTML = `<!doctype html>
 
 export default function HtmlPreviewer() {
   const [html, setHtml] = useState<string>(DEFAULT_HTML);
+  const [leftWidth, setLeftWidth] = useState<number>(50);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const iframeSrcDoc = useMemo(() => html, [html]);
+
+  useEffect(() => {
+    if (!isDragging) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0) {
+        return;
+      }
+
+      const nextWidth = ((event.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.min(80, Math.max(20, nextWidth));
+      setLeftWidth(clamped);
+    };
+
+    const handlePointerUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isDragging]);
 
   const handleDownload = () => {
     const blob = new Blob([html], { type: "text/html" });
@@ -38,8 +79,12 @@ export default function HtmlPreviewer() {
         </p>
       </header>
 
-      <div className="flex flex-col gap-4 md:flex-row">
-        <section className="flex w-full flex-col gap-3 md:w-1/2">
+      <div className="flex flex-col gap-4 md:flex-row md:gap-0" ref={containerRef} data-testid="pane-container">
+        <section
+          className="flex w-full flex-col gap-3 md:w-auto md:pr-3"
+          style={{ flexBasis: `${leftWidth}%` }}
+          data-testid="pane-left"
+        >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">HTML Input</h2>
             <button
@@ -57,7 +102,24 @@ export default function HtmlPreviewer() {
           />
         </section>
 
-        <section className="flex w-full flex-col gap-3 md:w-1/2">
+        <div className="relative hidden md:flex md:w-2 md:flex-none md:items-stretch">
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(leftWidth)}
+            className="w-full cursor-col-resize rounded-full bg-slate-200 transition hover:bg-blue-200"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
+            }}
+            data-testid="pane-resizer"
+          />
+        </div>
+
+        <section
+          className="flex w-full flex-col gap-3 md:w-auto md:pl-3"
+          style={{ flexBasis: `${100 - leftWidth}%` }}
+        >
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Live Preview</h2>
           <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
             <iframe

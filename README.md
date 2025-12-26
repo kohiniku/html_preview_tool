@@ -39,6 +39,7 @@ docker compose up -d
 ```
 
 The app is available via Nginx on `http://localhost/`.
+Frontend runs with a bind mount and hot reload enabled for JS/TS changes.
 
 ### Environment Variables
 - `DATABASE_URL`: SQLite connection string
